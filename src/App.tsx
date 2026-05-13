@@ -1716,7 +1716,22 @@ function App() {
                 </div>
                 <table className="table">
                   <thead><tr><th>근거</th><th>판단</th></tr></thead>
-                  <tbody>{reasons.map(([reason, grade]) => <tr key={reason}><td>{reason}</td><td className={grade === '탄탄함' ? 'reason-strong' : 'positive'}>{grade}</td></tr>)}</tbody>
+                 <tbody>
+                    {reasons.map(([reason, grade]) => {
+                      // '강함', '좋음', '관심 증가', '탄탄함', '안정' 중 하나인지 확인
+                      const isStrong = ['강함', '좋음', '관심 증가', '탄탄함', '안정'].includes(grade);
+                      
+                      // 확인된 결과(isStrong)에 따라 클래스 이름 부여
+                      const gradeClass = isStrong ? 'reason-strong' : 'positive'; // 주의: '보통', '주의', '평균 수준' 등은 positive 클래스가 됩니다.
+                    
+                      return (
+                        <tr key={reason}>
+                          <td>{reason}</td>
+                          <td className={gradeClass}>{grade}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
                 </table>
               </article>
             )}
