@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type CSSProperties, type DragEvent, type SVGProps } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type KeyboardEvent, type SVGProps } from 'react'
 import './App.css'
 
 type Theme = 'dark' | 'light'
 type Period = '1m' | '3m' | '1y'
 type Market = 'ALL' | 'KOSPI' | 'KOSDAQ'
 type RankMode = 'total' | 'krx' | 'sortino' | 'trade'
+type SelectControl = 'period' | 'market' | 'sector' | 'rank'
 type WidgetGroup = 'global' | 'stock'
 
 type WidgetId =
@@ -163,39 +164,42 @@ const sectors: Sector[] = [
 ]
 
 const initialIndicators: Indicator[] = [
-  { id: 'macroBoard', group: 'global', label: 'Macro Board', isChecked: true },
-  { id: 'hotTrendRanking', group: 'global', label: 'Hot Trend Ranking', isChecked: true },
-  { id: 'smartMoneyRanking', group: 'global', label: 'Smart Money Ranking', isChecked: true },
-  { id: 'etfTop10', group: 'global', label: 'KRX Index Top 10', isChecked: true },
-  { id: 'marketThermometer', group: 'global', label: 'Market Thermometer', isChecked: true },
-  { id: 'sectorRadar', group: 'global', label: 'Sector Radar', isChecked: true },
-  { id: 'hiddenGemMatrix', group: 'global', label: 'Smart Money Matrix', isChecked: true },
-  { id: 'stockSummary', group: 'stock', label: 'Stock Summary', isChecked: true },
-  { id: 'accountLink', group: 'stock', label: 'Account Link View', isChecked: true },
-  { id: 'valuationBand', group: 'stock', label: 'Valuation Band', isChecked: true },
-  { id: 'mdd', group: 'stock', label: 'MDD / Risk', isChecked: true },
-  { id: 'liveFeed', group: 'stock', label: 'Live Feed', isChecked: true },
-  { id: 'flowPercentiles', group: 'stock', label: 'Flow Percentiles', isChecked: false },
-  { id: 'reasonCards', group: 'stock', label: 'Reason Cards', isChecked: true },
-  { id: 'discoveryTrend', group: 'stock', label: 'Smart Money Trend', isChecked: true },
+  { id: 'macroBoard', group: 'global', label: '매크로 보드', isChecked: false },
+  { id: 'hotTrendRanking', group: 'global', label: '트렌드 랭킹', isChecked: true },
+  { id: 'smartMoneyRanking', group: 'global', label: '스마트 머니 랭킹', isChecked: true },
+  { id: 'etfTop10', group: 'global', label: 'KRX 지수 Top 10', isChecked: true },
+  { id: 'marketThermometer', group: 'global', label: '시장 온도계', isChecked: true },
+  { id: 'sectorRadar', group: 'global', label: '섹터별 랭킹', isChecked: true },
+  { id: 'hiddenGemMatrix', group: 'global', label: '스마트 머니 매트릭스', isChecked: true },
+  { id: 'stockSummary', group: 'stock', label: '종목 정보', isChecked: true },
+  { id: 'accountLink', group: 'stock', label: '계좌 현황', isChecked: true },
+  { id: 'valuationBand', group: 'stock', label: '가치 평가 밴드', isChecked: true },
+  { id: 'mdd', group: 'stock', label: 'MDD', isChecked: true },
+  { id: 'liveFeed', group: 'stock', label: '실시간 피드', isChecked: true },
+  { id: 'reasonCards', group: 'stock', label: '종목 분석 지표', isChecked: true },
 ]
 
 const initialWidgetLayout: WidgetLayoutItem[] = [
-  { id: 'macroBoard', order: 0, span: 12 },
-  { id: 'hotTrendRanking', order: 1, span: 4 },
-  { id: 'smartMoneyRanking', order: 2, span: 4 },
-  { id: 'marketThermometer', order: 3, span: 4 },
-  { id: 'sectorRadar', order: 4, span: 4 },
-  { id: 'hiddenGemMatrix', order: 5, span: 8 },
-  { id: 'etfTop10', order: 6, span: 4 },
+  { id: 'stockSummary', order: 0, span: 4 },
+  { id: 'accountLink', order: 1, span: 4 },
+  { id: 'etfTop10', order: 2, span: 4 },
+  { id: 'hotTrendRanking', order: 3, span: 4 },
+  { id: 'hiddenGemMatrix', order: 4, span: 8 },
+  { id: 'marketThermometer', order: 5, span: 4 },
+  { id: 'sectorRadar', order: 6, span: 4 },
   { id: 'valuationBand', order: 7, span: 4 },
-  { id: 'stockSummary', order: 8, span: 4 },
-  { id: 'accountLink', order: 9, span: 4 },
-  { id: 'mdd', order: 10, span: 4 },
-  { id: 'liveFeed', order: 11, span: 4 },
-  { id: 'flowPercentiles', order: 12, span: 4 },
-  { id: 'reasonCards', order: 13, span: 4 },
-  { id: 'discoveryTrend', order: 14, span: 12 },
+  { id: 'smartMoneyRanking', order: 8, span: 4 },
+  { id: 'mdd', order: 9, span: 4 },
+  { id: 'liveFeed', order: 10, span: 4 },
+  { id: 'reasonCards', order: 11, span: 4 },
+  { id: 'macroBoard', order: 12, span: 12 },
+  { id: 'discoveryTrend', order: 13, span: 12 },
+]
+
+const marketOptions: Array<{ value: Market; label: string; detail: string }> = [
+  { value: 'ALL', label: 'KOSPI + KOSDAQ', detail: '전체 시장' },
+  { value: 'KOSPI', label: 'KOSPI', detail: '유가증권시장' },
+  { value: 'KOSDAQ', label: 'KOSDAQ', detail: '코스닥시장' },
 ]
 
 const macroData = [
@@ -240,6 +244,11 @@ const feedTemplates: Record<string, string[]> = {
 const sectorById = Object.fromEntries(sectors.map((sector) => [sector.id, sector]))
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value))
 const avg = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1)
+const EOK_TO_MILLION_KRW = 100
+
+function normalizeSearchText(value: string) {
+  return value.trim().normalize('NFC').replace(/\s+/g, '').toLowerCase()
+}
 
 function parseCsvLine(line: string) {
   const cells: string[] = []
@@ -293,7 +302,7 @@ function formatMarketCap(raw?: number) {
   if (!raw) return '-'
   const trillion = raw / 1_000_000
   if (trillion >= 1) return `${trillion.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}조`
-  return `${Math.round(raw / 1000).toLocaleString('ko-KR')}억`
+  return `${Math.round(raw / EOK_TO_MILLION_KRW).toLocaleString('ko-KR')}억`
 }
 
 function buildFundamentalsFromCsv(csv: string): Record<string, FundamentalMetric> {
@@ -317,7 +326,7 @@ function buildFundamentalsFromCsv(csv: string): Record<string, FundamentalMetric
       name,
       market,
       price: numericCell(cells[columnIndex['price']]),
-      marketCapRaw: numericCell(cells[columnIndex['market_cap']]) * 1000,
+      marketCapRaw: numericCell(cells[columnIndex['market_cap']]) * EOK_TO_MILLION_KRW,
       listedShares: numericCell(cells[columnIndex['listed_shares']]),
       per: numericCell(cells[columnIndex['per']]),
       pbr: numericCell(cells[columnIndex['pbr']]),
@@ -361,10 +370,10 @@ function buildStocksFromCsv(
     const current = grouped.get(ticker) ?? {
       ticker,
       name,
-      lastPrice: Number(cells[columnIndex['종가']]) || 0,
-      priceChange: Number(cells[columnIndex['대비']]) || 0,
-      changeRate: Number(cells[columnIndex['등락률']]) || 0,
-      marketCapRaw: Number(cells[columnIndex['상장시가총액']]) || 0,
+      lastPrice: numericCell(cells[columnIndex['종가']]),
+      priceChange: numericCell(cells[columnIndex['대비']]),
+      changeRate: numericCell(cells[columnIndex['등락률']]),
+      marketCapRaw: numericCell(cells[columnIndex['상장시가총액']]),
       indexNames: new Set<string>(),
     }
     current.indexNames.add(indexName)
@@ -391,7 +400,7 @@ function buildStocksFromCsv(
 
       return {
         ticker: item.ticker,
-        name: item.name,
+        name: fundamental?.name || item.name,
         sector,
         market: daily?.market ?? fundamental?.market ?? inferMarket(item.ticker, indexNames),
         latestDate: daily?.latestDate,
@@ -597,10 +606,10 @@ function percentileRow(label: string, values: number[], now: number, unit: strin
 function Maximize2(props: SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
-      <path d="M15 3h6v6" />
-      <path d="m21 3-7 7" />
-      <path d="m3 21 7-7" />
-      <path d="M9 21H3v-6" />
+      <polyline points="15 3 21 3 21 9" />
+      <polyline points="9 21 3 21 3 15" />
+      <line x1="21" x2="14" y1="3" y2="10" />
+      <line x1="3" x2="10" y1="21" y2="14" />
     </svg>
   )
 }
@@ -608,10 +617,10 @@ function Maximize2(props: SVGProps<SVGSVGElement>) {
 function Minimize2(props: SVGProps<SVGSVGElement>) {
   return (
     <svg fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" {...props}>
-      <path d="M4 14h6v6" />
-      <path d="m10 14-7 7" />
-      <path d="m21 3-7 7" />
-      <path d="M14 10V4h6" />
+      <polyline points="4 14 10 14 10 20" />
+      <polyline points="20 10 14 10 14 4" />
+      <line x1="14" x2="21" y1="10" y2="3" />
+      <line x1="3" x2="10" y1="21" y2="14" />
     </svg>
   )
 }
@@ -635,21 +644,117 @@ function SquareX(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+function PickVestLogo() {
+  return (
+    <svg aria-hidden="true" className="pv-logo" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="pvLogoGradient" x1="8" x2="56" y1="8" y2="56" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#08b8f4" />
+          <stop offset="0.52" stopColor="#2563eb" />
+          <stop offset="1" stopColor="#8b5cf6" />
+        </linearGradient>
+      </defs>
+      <rect className="pv-logo-frame" x="8" y="8" width="48" height="48" rx="13" />
+      <path className="pv-logo-mark" d="M21 45V27.8c0-8 5.3-13.2 13.4-13.2 7.4 0 12.4 4.5 12.4 11.1 0 6.9-5.4 11.7-13 11.7h-4.5v7.6" />
+      <path className="pv-logo-mark" d="M34.7 35.8 41 46.2c1.2 2 4.1 1.8 5-.4L56 20" />
+    </svg>
+  )
+}
+
 function App() {
   const [theme, setTheme] = useState<Theme>('dark')
+  const [themeSwitching, setThemeSwitching] = useState(false)
   const [selectedTicker, setSelectedTicker] = useState('005930')
   const [searchValue, setSearchValue] = useState('삼성전자')
   const [searchPressed, setSearchPressed] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
+  const [activeMarketIndex, setActiveMarketIndex] = useState(0)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [period, setPeriod] = useState<Period>('3m')
   const [market, setMarket] = useState<Market>('ALL')
   const [sector, setSector] = useState('ALL')
   const [rankMode, setRankMode] = useState<RankMode>('total')
   const [highlightedSector, setHighlightedSector] = useState<string | null>(null)
+  const [openSelect, setOpenSelect] = useState<SelectControl | null>(null)
+  const [resetPressed, setResetPressed] = useState(false)
   const [indicators, setIndicators] = useState(initialIndicators)
   const [widgetLayout, setWidgetLayout] = useState(initialWidgetLayout)
   const [csvStocks, setCsvStocks] = useState<Stock[]>([])
-  const [dailyPayload, setDailyPayload] = useState<DailyMetricsPayload | null>(null)
-  const [dataStatus, setDataStatus] = useState<'loading' | 'ready' | 'fallback'>('loading')
+  const searchOptionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const marketOptionRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const isDraggingWidgetRef = useRef(false)
+  const dragAutoScrollFrameRef = useRef<number | null>(null)
+  const dragPointRef = useRef({ x: 0, y: 0 })
+
+  const stopDragAutoScroll = () => {
+    isDraggingWidgetRef.current = false
+    if (dragAutoScrollFrameRef.current === null) return
+    window.cancelAnimationFrame(dragAutoScrollFrameRef.current)
+    dragAutoScrollFrameRef.current = null
+  }
+
+  useEffect(() => {
+    const getScrollSpeed = (position: number, start: number, end: number) => {
+      const threshold = Math.min(96, Math.max(48, (end - start) / 3))
+      const maxSpeed = 18
+      const topEdge = start + threshold
+      const bottomEdge = end - threshold
+      if (position < topEdge) return -Math.ceil(((topEdge - position) / threshold) * maxSpeed)
+      if (position > bottomEdge) return Math.ceil(((position - bottomEdge) / threshold) * maxSpeed)
+      return 0
+    }
+
+    const findScrollableParent = (element: Element | null) => {
+      let current = element instanceof HTMLElement ? element : null
+      while (current && current !== document.body) {
+        const style = window.getComputedStyle(current)
+        const canScroll = /(auto|scroll|overlay)/.test(style.overflowY)
+        if (canScroll && current.scrollHeight > current.clientHeight) return current
+        current = current.parentElement
+      }
+      return null
+    }
+
+    const runAutoScroll = () => {
+      if (!isDraggingWidgetRef.current) {
+        dragAutoScrollFrameRef.current = null
+        return
+      }
+
+      const { x, y } = dragPointRef.current
+      const scrollParent = findScrollableParent(document.elementFromPoint(x, y))
+      if (scrollParent) {
+        const rect = scrollParent.getBoundingClientRect()
+        const speed = getScrollSpeed(y, rect.top, rect.bottom)
+        if (speed !== 0) scrollParent.scrollBy({ top: speed })
+      } else {
+        const speed = getScrollSpeed(y, 0, window.innerHeight)
+        if (speed !== 0) window.scrollBy({ top: speed })
+      }
+
+      dragAutoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll)
+    }
+
+    const handleWindowDragOver = (event: globalThis.DragEvent) => {
+      if (!isDraggingWidgetRef.current) return
+      dragPointRef.current = { x: event.clientX, y: event.clientY }
+      if (dragAutoScrollFrameRef.current === null) {
+        dragAutoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll)
+      }
+    }
+
+    window.addEventListener('dragover', handleWindowDragOver)
+    window.addEventListener('drop', stopDragAutoScroll)
+    window.addEventListener('dragend', stopDragAutoScroll)
+
+    return () => {
+      window.removeEventListener('dragover', handleWindowDragOver)
+      window.removeEventListener('drop', stopDragAutoScroll)
+      window.removeEventListener('dragend', stopDragAutoScroll)
+      stopDragAutoScroll()
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -670,19 +775,12 @@ function App() {
       .then(([indexText, fundamentalsText, daily]) => {
         const parsed = buildStocksFromCsv(indexText, daily?.metrics ?? {}, buildFundamentalsFromCsv(fundamentalsText))
         if (cancelled) return
-        if (!parsed.length) {
-          setDataStatus('fallback')
-          return
-        }
-        setDailyPayload(daily)
+        if (!parsed.length) return
         setCsvStocks(parsed)
         setSelectedTicker(parsed[0].ticker)
         setSearchValue(parsed[0].name)
-        setDataStatus(daily ? 'ready' : 'fallback')
       })
-      .catch(() => {
-        if (!cancelled) setDataStatus('fallback')
-      })
+      .catch(() => undefined)
     return () => {
       cancelled = true
     }
@@ -696,6 +794,15 @@ function App() {
   )
   const sorted = useMemo(() => sortCandidates(candidates, rankMode), [candidates, rankMode])
   const hotSectors = useMemo(() => hotTrendSectors(enriched), [enriched])
+  const marketLabel = marketOptions.find((option) => option.value === market)?.label ?? market
+  const marketLatestDate = useMemo(() => {
+    const dates = enriched
+      .filter((stock) => market === 'ALL' || stock.market === market)
+      .map((stock) => stock.latestDate)
+      .filter((date): date is string => Boolean(date))
+      .sort()
+    return dates.at(-1)?.replace(/-/g, '.') ?? '데이터 없음'
+  }, [enriched, market])
   const indexTopHoldings = useMemo(() => {
     const top = [...candidates]
       .sort((a, b) => (b.marketCapRaw ?? 0) - (a.marketCapRaw ?? 0))
@@ -708,6 +815,29 @@ function App() {
   }, [candidates])
   const maxEtfWeight = Math.max(...indexTopHoldings.map((item) => item.weight), 1)
   const selected = enriched.find((stock) => stock.ticker === selectedTicker) ?? sorted[0] ?? enriched[0]
+  const searchMatches = useMemo(() => {
+    const normalized = normalizeSearchText(searchValue)
+    if (!normalized) return []
+    return stocks
+      .filter((stock) => {
+        const name = normalizeSearchText(stock.name)
+        const shortName = normalizeSearchText(stock.name.replace(/보통주$/, ''))
+        const ticker = normalizeSearchText(stock.ticker)
+        return name.includes(normalized) || shortName.includes(normalized) || ticker.includes(normalized)
+      })
+      .slice(0, 40)
+  }, [searchValue, stocks])
+
+  useEffect(() => {
+    if (!searchOpen || activeSearchIndex < 0) return
+    searchOptionRefs.current[activeSearchIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeSearchIndex, searchOpen])
+
+  useEffect(() => {
+    if (openSelect !== 'market') return
+    marketOptionRefs.current[activeMarketIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeMarketIndex, openSelect])
+
   const visibleWidgets = new Set(indicators.filter((indicator) => indicator.isChecked).map((indicator) => indicator.id))
   const isVisible = (id: WidgetId) => visibleWidgets.has(id)
   const selectStock = (ticker: string) => {
@@ -716,29 +846,105 @@ function App() {
     setSelectedTicker(ticker)
     setSearchValue(stock.name)
   }
-  const findStockByQuery = (query: string) => {
+  const findExactStockByQuery = (query: string) => {
     const normalized = query.trim()
-    return stocks.find((stock) => stock.name === normalized || stock.ticker === normalized)
+    if (!normalized) return undefined
+    const compact = normalizeSearchText(normalized)
+    return stocks.find((stock) => (
+      normalizeSearchText(stock.name) === compact ||
+      normalizeSearchText(stock.name.replace(/보통주$/, '')) === compact ||
+      normalizeSearchText(stock.ticker) === compact
+    ))
   }
   const activateSearchFeedback = () => {
     setSearchPressed(true)
-    window.setTimeout(() => setSearchPressed(false), 180)
+    window.setTimeout(() => setSearchPressed(false), 90)
   }
   const runSearch = (query = searchValue) => {
     activateSearchFeedback()
-    const match = findStockByQuery(query)
-    if (match) selectStock(match.ticker)
+    const activeMatch = searchOpen && activeSearchIndex >= 0 ? searchMatches[activeSearchIndex] : undefined
+    const match = activeMatch ?? findExactStockByQuery(query) ?? (searchMatches.length === 1 ? searchMatches[0] : undefined)
+    if (!match) return
+    selectStock(match.ticker)
+    setSearchOpen(false)
+    setActiveSearchIndex(-1)
   }
   const handleSearchChange = (value: string) => {
     setSearchValue(value)
-    const match = findStockByQuery(value)
-    if (match) selectStock(match.ticker)
+    setSearchOpen(Boolean(value.trim()))
+    setActiveSearchIndex(-1)
+  }
+  const chooseSearchMatch = (ticker: string) => {
+    selectStock(ticker)
+    setSearchOpen(false)
+    setActiveSearchIndex(-1)
+  }
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      if (!searchMatches.length) return
+      event.preventDefault()
+      setSearchOpen(true)
+      setActiveSearchIndex((index) => Math.min(index + 1, searchMatches.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      if (!searchMatches.length) return
+      event.preventDefault()
+      setSearchOpen(true)
+      setActiveSearchIndex((index) => Math.max(index - 1, 0))
+      return
+    }
+    if (event.key === 'Escape') {
+      setSearchOpen(false)
+      setActiveSearchIndex(-1)
+      return
+    }
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    runSearch(event.currentTarget.value)
+  }
+  const openMarketDropdown = () => {
+    setActiveMarketIndex(Math.max(0, marketOptions.findIndex((option) => option.value === market)))
+    setOpenSelect('market')
+  }
+  const chooseMarket = (value: Market) => {
+    setMarket(value)
+    setOpenSelect(null)
+  }
+  const handleMarketKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (openSelect !== 'market') {
+        openMarketDropdown()
+        return
+      }
+      setActiveMarketIndex((index) => Math.min(index + 1, marketOptions.length - 1))
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (openSelect !== 'market') {
+        openMarketDropdown()
+        return
+      }
+      setActiveMarketIndex((index) => Math.max(index - 1, 0))
+      return
+    }
+    if (event.key === 'Escape') {
+      setOpenSelect(null)
+      return
+    }
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    if (openSelect !== 'market') {
+      openMarketDropdown()
+      return
+    }
+    chooseMarket(marketOptions[activeMarketIndex]?.value ?? market)
   }
   const selectHotSector = (sectorId: string) => {
     setSector(sectorId)
     setHighlightedSector(null)
-    window.setTimeout(() => setHighlightedSector(sectorId), 0)
-    window.setTimeout(() => setHighlightedSector((current) => (current === sectorId ? null : current)), 520)
   }
   const setIndicatorVisible = (id: WidgetId, isChecked: boolean) => {
     setIndicators((items) => items.map((item) => (item.id === id ? { ...item, isChecked } : item)))
@@ -746,13 +952,22 @@ function App() {
   const toggleIndicator = (id: WidgetId) => {
     setIndicators((items) => items.map((item) => (item.id === id ? { ...item, isChecked: !item.isChecked } : item)))
   }
-  const moveWidget = (draggedId: WidgetId, targetId?: WidgetId) => {
+  const placeWidgetAtEnd = (draggedId: WidgetId) => {
     setWidgetLayout((items) => {
-      const orderedIds = [...items].sort((a, b) => a.order - b.order).map((item) => item.id)
-      const nextIds = orderedIds.filter((id) => id !== draggedId)
-      const targetIndex = targetId ? nextIds.indexOf(targetId) : nextIds.length
-      nextIds.splice(targetIndex >= 0 ? targetIndex : nextIds.length, 0, draggedId)
-      return items.map((item) => ({ ...item, order: nextIds.indexOf(item.id) }))
+      const maxOrder = Math.max(...items.filter((item) => item.id !== draggedId).map((item) => item.order), 0)
+      return items.map((item) => (item.id === draggedId ? { ...item, order: maxOrder + 1 } : item))
+    })
+  }
+  const swapWidgetOrder = (draggedId: WidgetId, targetId: WidgetId) => {
+    setWidgetLayout((items) => {
+      const dragged = items.find((item) => item.id === draggedId)
+      const target = items.find((item) => item.id === targetId)
+      if (!dragged || !target) return items
+      return items.map((item) => {
+        if (item.id === draggedId) return { ...item, order: target.order }
+        if (item.id === targetId) return { ...item, order: dragged.order }
+        return item
+      })
     })
   }
   const resizeWidget = (id: WidgetId) => {
@@ -764,26 +979,31 @@ function App() {
     }))
   }
   const handleDragStart = (event: DragEvent<HTMLElement>, id: WidgetId, source: 'palette' | 'canvas') => {
+    isDraggingWidgetRef.current = true
+    dragPointRef.current = { x: event.clientX, y: event.clientY }
     event.dataTransfer.setData('application/x-pickvest-widget', JSON.stringify({ id, source }))
     event.dataTransfer.effectAllowed = source === 'palette' ? 'copy' : 'move'
   }
   const handleDropToCanvas = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
+    stopDragAutoScroll()
     const payload = JSON.parse(event.dataTransfer.getData('application/x-pickvest-widget') || '{}') as { id?: WidgetId }
     if (!payload.id) return
     setIndicatorVisible(payload.id, true)
-    moveWidget(payload.id)
+    placeWidgetAtEnd(payload.id)
   }
   const handleDropOnWidget = (event: DragEvent<HTMLElement>, targetId: WidgetId) => {
     event.preventDefault()
     event.stopPropagation()
+    stopDragAutoScroll()
     const payload = JSON.parse(event.dataTransfer.getData('application/x-pickvest-widget') || '{}') as { id?: WidgetId }
     if (!payload.id || payload.id === targetId) return
     setIndicatorVisible(payload.id, true)
-    moveWidget(payload.id, targetId)
+    swapWidgetOrder(payload.id, targetId)
   }
   const handleDropToSidebar = (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
+    stopDragAutoScroll()
     const payload = JSON.parse(event.dataTransfer.getData('application/x-pickvest-widget') || '{}') as { id?: WidgetId; source?: string }
     if (payload.id && payload.source === 'canvas') setIndicatorVisible(payload.id, false)
   }
@@ -794,8 +1014,22 @@ function App() {
     setRankMode('total')
     setSelectedTicker(stocks[0]?.ticker ?? '005930')
     setSearchValue(stocks[0]?.name ?? '삼성전자')
-    setIndicators(initialIndicators.map((indicator) => ({ ...indicator, isChecked: indicator.id !== 'flowPercentiles' })))
+    setIndicators(initialIndicators)
     setWidgetLayout(initialWidgetLayout)
+  }
+  const toggleSelectArrow = (id: SelectControl) => {
+    if (id === 'market') setActiveMarketIndex(Math.max(0, marketOptions.findIndex((option) => option.value === market)))
+    setOpenSelect((current) => (current === id ? null : id))
+  }
+  const handleResetDashboard = () => {
+    setResetPressed(true)
+    resetDashboard()
+    window.setTimeout(() => setResetPressed(false), 140)
+  }
+  const toggleTheme = () => {
+    setThemeSwitching(true)
+    setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+    window.setTimeout(() => setThemeSwitching(false), 120)
   }
 
   const WidgetTools = ({ id }: { id: WidgetId }) => {
@@ -804,7 +1038,13 @@ function App() {
 
     return (
       <div className="widget-tools">
-        <span className="widget-handle" draggable onDragStart={(event) => handleDragStart(event, id, 'canvas')} title="사이드바로 드래그하면 숨김">
+        <span
+          className="widget-handle"
+          draggable
+          onDragEnd={stopDragAutoScroll}
+          onDragStart={(event) => handleDragStart(event, id, 'canvas')}
+          title="사이드바로 드래그하면 숨김"
+        >
           <SquareMousePointer aria-hidden="true" />
         </span>
         <button
@@ -832,6 +1072,7 @@ function App() {
   const widgetGridProps = (id: WidgetId): {
     draggable: boolean
     onDragStart: (event: DragEvent<HTMLElement>) => void
+    onDragEnd: () => void
     onDragOver: (event: DragEvent<HTMLElement>) => void
     onDrop: (event: DragEvent<HTMLElement>) => void
     style: CSSProperties
@@ -840,6 +1081,7 @@ function App() {
     return {
       draggable: id === 'macroBoard',
       onDragStart: (event) => handleDragStart(event, id, 'canvas'),
+      onDragEnd: stopDragAutoScroll,
       onDragOver: (event) => event.preventDefault(),
       onDrop: (event) => handleDropOnWidget(event, id),
       style: {
@@ -859,6 +1101,7 @@ function App() {
           data-indicator={indicator.id}
           key={indicator.id}
           onDoubleClick={() => toggleIndicator(indicator.id)}
+          onDragEnd={stopDragAutoScroll}
           onDragStart={(event) => handleDragStart(event, indicator.id, 'palette')}
           title="대시보드로 드래그해서 추가, 더블클릭으로 토글"
         >
@@ -868,7 +1111,6 @@ function App() {
             aria-label={`${indicator.label} 표시`}
             type="checkbox"
           />
-          <span>↕</span>
           <span>{indicator.label}</span>
           <small>{indicator.isChecked ? 'ON' : 'OFF'}</small>
         </div>
@@ -900,20 +1142,10 @@ function App() {
     return <LinearGauge average={historyAvg} goodHigh={goodHigh} key={label} label={label} max={max} min={min} sectorAverage={sectorAverage} unit={unit} value={value} />
   }
 
-  const valuationRows = [
-    percentileRow('PER', peers.map((stock) => stock.per), selected.per, 'x', (now, p50) => now <= p50),
-    percentileRow('PBR', peers.map((stock) => stock.pbr), selected.pbr, 'x', (now, p50) => now <= p50),
-    percentileRow('ROE', peers.map((stock) => stock.roe), selected.roe, '%', (now, p50) => now >= p50),
-  ]
   const flowRows = [
     percentileRow('KRX hits', enriched.map((stock) => stock.krxIndexHits), selected.krxIndexHits, 'count', (now, p50) => now >= p50),
     percentileRow('Sortino 6M', enriched.map((stock) => stock.sortino6m), selected.sortino6m, 'x', (now, p50) => now >= p50),
     percentileRow('5D/20D trade', enriched.map((stock) => stock.tradeValueRatio), selected.tradeValueRatio, 'x', (now, p50) => now >= p50),
-  ]
-  const riskRows = [
-    percentileRow('MDD', peers.map((stock) => stock.mdd), selected.mdd, '%', (now, p50) => now >= p50),
-    percentileRow('Volatility', peers.map((stock) => stock.volatility), selected.volatility, '%', (now, p50) => now <= p50),
-    percentileRow('Drawdown days', peers.map((stock) => stock.drawdownDays), selected.drawdownDays, 'count', (now, p50) => now <= p50),
   ]
   const reasons = [
     [`KRX 지수`, selected.krxNorm >= 0.65 ? '강함' : '보통'],
@@ -923,65 +1155,105 @@ function App() {
     [selected.riskScore >= 60 ? 'MDD / 변동성' : 'MDD / 변동성', selected.riskScore >= 60 ? '안정' : '주의'],
   ]
   const holding = accountMock.holdings[selected.ticker]
+  const matrixStocks = sorted.slice(0, 20)
+  const matrixData = matrixStocks.length ? matrixStocks : [selected]
+  const matrixXValues = matrixData.map((stock) => stock.marketAttentionScore)
+  const matrixYValues = matrixData.map((stock) => stock.intrinsicScore)
+  const matrixXMin = Math.floor(Math.min(...matrixXValues) - 10)
+  const matrixXMax = Math.ceil(Math.max(...matrixXValues) + 10)
+  const matrixYMin = Math.floor(Math.min(...matrixYValues) - 10)
+  const matrixYMax = Math.ceil(Math.max(...matrixYValues) + 10)
+  const matrixXRange = matrixXMax - matrixXMin || 1
+  const matrixYRange = matrixYMax - matrixYMin || 1
+  const matrixXMidValue = (matrixXMin + matrixXMax) / 2
+  const matrixYMidValue = (matrixYMin + matrixYMax) / 2
   const matrixSpan = widgetLayout.find((item) => item.id === 'hiddenGemMatrix')?.span ?? 8
   const matrixWidth = matrixSpan === 12 ? 920 : matrixSpan === 8 ? 760 : matrixSpan === 6 ? 620 : 520
   const matrixHeight = matrixSpan === 12 ? 390 : matrixSpan === 8 ? 340 : matrixSpan === 6 ? 315 : 290
   const matrixPlot = {
-    left: 62,
+    left: matrixSpan === 4 ? 72 : 78,
     top: 38,
     right: matrixWidth - 30,
     bottom: matrixHeight - 56,
   }
-  const matrixMidX = (matrixPlot.left + matrixPlot.right) / 2
-  const matrixMidY = (matrixPlot.top + matrixPlot.bottom) / 2
+  const matrixScaleX = (value: number) => matrixPlot.left + ((value - matrixXMin) / matrixXRange) * (matrixPlot.right - matrixPlot.left)
+  const matrixScaleY = (value: number) => matrixPlot.bottom - ((value - matrixYMin) / matrixYRange) * (matrixPlot.bottom - matrixPlot.top)
+  const matrixMidX = matrixScaleX(matrixXMidValue)
+  const matrixMidY = matrixScaleY(matrixYMidValue)
   const matrixLabelLimit = matrixSpan === 12 ? 13 : matrixSpan === 8 ? 10 : matrixSpan === 6 ? 7 : 5
   const matrixFontSize = matrixSpan === 12 ? 12 : matrixSpan === 8 ? 11 : 10
   const matrixRadiusScale = matrixSpan >= 8 ? 8.8 : 7.4
 
   return (
-    <div className="pickvest-app" data-theme={theme}>
-      <aside className="sidebar" aria-label="대시보드 사이드바" onDragOver={(event) => event.preventDefault()} onDrop={handleDropToSidebar}>
-        <div className="brand">Pick-Vest</div>
+    <div className={`pickvest-app ${sidebarCollapsed ? 'sidebar-collapsed' : ''} ${themeSwitching ? 'theme-switching' : ''}`} data-theme={theme}>
+      <aside className="sidebar" aria-expanded={!sidebarCollapsed} aria-label="대시보드 사이드바" onDragOver={(event) => event.preventDefault()} onDrop={handleDropToSidebar}>
+        <div className="brand">
+          <span className="brand-name">Pick-Vest</span>
+          <button
+            aria-label={sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'}
+            className="sidebar-toggle"
+            type="button"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            title={sidebarCollapsed ? '사이드바 열기' : '사이드바 닫기'}
+          >
+            {sidebarCollapsed ? '›' : '‹'}
+          </button>
+        </div>
         <div className="search">
           <div className="search-box">
             <span className="search-icon">⌕</span>
             <input
+              aria-activedescendant={activeSearchIndex >= 0 && searchMatches[activeSearchIndex] ? `search-option-${searchMatches[activeSearchIndex].ticker}` : undefined}
+              aria-autocomplete="list"
               aria-label="종목 검색"
-              list="stockOptions"
+              aria-expanded={searchOpen && searchMatches.length > 0}
+              aria-controls="stockOptions"
               onChange={(event) => handleSearchChange(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter') return
-                runSearch(event.currentTarget.value)
+              onBlur={() => {
+                window.setTimeout(() => {
+                  setSearchOpen(false)
+                  setActiveSearchIndex(-1)
+                }, 80)
               }}
+              onFocus={(event) => {
+                event.currentTarget.select()
+                setSearchOpen(Boolean(event.currentTarget.value.trim()))
+              }}
+              onKeyDown={handleSearchKeyDown}
               placeholder="종목명/티커 검색"
+              role="combobox"
               value={searchValue}
             />
-            <datalist id="stockOptions">
-              {stocks.map((stock) => (
-                <option key={stock.ticker} value={stock.name}>
-                  {stock.ticker}
-                </option>
-              ))}
-            </datalist>
+            {searchOpen && searchMatches.length > 0 && (
+              <div className="search-results" id="stockOptions" role="listbox">
+                {searchMatches.map((stock, index) => (
+                  <button
+                    aria-selected={index === activeSearchIndex}
+                    className={`search-result ${index === activeSearchIndex ? 'is-active' : ''}`}
+                    id={`search-option-${stock.ticker}`}
+                    key={stock.ticker}
+                    ref={(node) => {
+                      searchOptionRefs.current[index] = node
+                    }}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      chooseSearchMatch(stock.ticker)
+                    }}
+                    onMouseEnter={() => setActiveSearchIndex(index)}
+                    role="option"
+                    type="button"
+                  >
+                    <span>{stock.name}</span>
+                    <small>{stock.ticker}</small>
+                  </button>
+                ))}
+              </div>
+            )}
             <button className={`kbd ${searchPressed ? 'is-pressed' : ''}`} type="button" onClick={() => runSearch()}>
-              𝓔𝓷𝓽𝓮𝓻
+              검색
             </button>
           </div>
         </div>
-
-        <nav className="nav-section" aria-label="주요 메뉴">
-          <p className="nav-title">Overview</p>
-          <a className="nav-item active" href="#home"><span>⌂</span><span>Pick-Vest</span></a>
-          <a className="nav-item" href="#dashboard"><span>▦</span><span>Dashboards</span></a>
-          <p className="nav-title">Discovery</p>
-          <a className="nav-item" href="#matrix"><span>◇</span><span>Hidden Finder</span></a>
-          <a className="nav-item" href="#sector"><span>↗</span><span>Sector Radar</span></a>
-          <a className="nav-item" href="#money"><span>◎</span><span>Smart Money</span></a>
-          <p className="nav-title">Signals</p>
-          <a className="nav-item" href="#valuation"><span>▤</span><span>Valuation Bands</span></a>
-          <a className="nav-item" href="#risk"><span>◷</span><span>Risk Monitor</span></a>
-          {/*<a className="nav-item" href="#watch"><span>☆</span><span>Watchlist</span></a>*/}
-        </nav>
 
         <section className="indicator-panel" aria-label="위젯 선택">
           <p className="nav-title">Global Widgets</p>
@@ -994,14 +1266,14 @@ function App() {
       <main className="main">
         <header className="top-nav">
           <div className="workspace">
-            <span>▮</span>
+            <PickVestLogo />
             <span className="accent">Pick-Vest</span>
             <span className="divider" />
-            <span>Hidden Stock Finder</span>
+            <span>내 손으로 만드는 나만의 대시보드</span>
           </div>
           <div className="top-actions" aria-label="상단 액션">
-            <button className="icon-button" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-              {theme === 'dark' ? 'Light' : 'Dark'}
+            <button className="icon-button theme-toggle" type="button" onClick={toggleTheme}>
+              {theme === 'dark' ? 'Dark' : 'Light'}
             </button>
           </div>
         </header>
@@ -1009,54 +1281,57 @@ function App() {
         <section className="content" id="home" aria-label="투자 대시보드">
           <div className="page-title">
             <div>
-              <h1>Pick-Vest</h1>
-              <p>내 손으로 만드는 나만의 대시보드</p>
+              <h1>{selected?.name ?? 'Pick-Vest'}</h1>
+              <p>{selected?.ticker ?? '내 손으로 만드는 나만의 대시보드'}</p>
             </div>
-            <span className="score-pill">
-              {dataStatus === 'ready'
-                ? `KRX fundamentals + daily loaded · ${stocks.length.toLocaleString('ko-KR')} stocks · ${dailyPayload?.symbolCount.toLocaleString('ko-KR')} daily series`
-                : dataStatus === 'loading'
-                  ? 'Loading KRX fundamentals...'
-                  : 'KRX fundamentals loaded / daily unavailable'}
-            </span>
+            <form className="title-controls" id="dashboard" onSubmit={(event) => event.preventDefault()}>
+              <div
+                className={`control select-control market-control ${openSelect === 'market' ? 'is-open' : ''}`}
+                onBlur={() => window.setTimeout(() => setOpenSelect(null), 80)}
+              >
+                <span>Market  |</span>
+                <button
+                  aria-activedescendant={openSelect === 'market' ? `market-option-${marketOptions[activeMarketIndex]?.value}` : undefined}
+                  aria-expanded={openSelect === 'market'}
+                  aria-controls="marketOptions"
+                  aria-haspopup="listbox"
+                  className="market-trigger"
+                  type="button"
+                  onClick={() => toggleSelectArrow('market')}
+                  onKeyDown={handleMarketKeyDown}
+                >
+                  {marketLabel}
+                </button>
+                {openSelect === 'market' && (
+                  <div className="search-results market-results" id="marketOptions" role="listbox">
+                    {marketOptions.map((option, index) => (
+                      <button
+                        aria-selected={index === activeMarketIndex}
+                        className={`search-result market-result ${index === activeMarketIndex ? 'is-active' : ''}`}
+                        id={`market-option-${option.value}`}
+                        key={option.value}
+                        ref={(node) => {
+                          marketOptionRefs.current[index] = node
+                        }}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                          chooseMarket(option.value)
+                        }}
+                        onMouseEnter={() => setActiveMarketIndex(index)}
+                        role="option"
+                        type="button"
+                      >
+                        <span>{option.label}</span>
+                        <small>{option.detail}</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <label className="control wide"><span>Date  | {marketLabel} · {marketLatestDate}</span></label>
+              <button className={`control reset-control ${resetPressed ? 'is-resetting' : ''}`} type="button" onClick={handleResetDashboard}>Reset</button>
+            </form>
           </div>
-
-          <form className="filter-bar" id="dashboard" onSubmit={(event) => event.preventDefault()}>
-            <label className="control wide"><span>Date May 04, 09:00 - May 04, 15:30</span></label>
-            <label className="control period-control">
-              <span>Period</span>
-              <select value={period} onChange={(event) => setPeriod(event.target.value as Period)} aria-label="기간">
-                <option value="3m">Past 3 months</option>
-                <option value="1m">Past 1 month</option>
-                <option value="1y">Past 1 year</option>
-              </select>
-            </label>
-            <label className="control">
-              <span>Market</span>
-              <select value={market} onChange={(event) => setMarket(event.target.value as Market)} aria-label="시장">
-                <option value="ALL">KOSPI + KOSDAQ</option>
-                <option value="KOSPI">KOSPI</option>
-                <option value="KOSDAQ">KOSDAQ</option>
-              </select>
-            </label>
-            <label className="control">
-              <span>Sector</span>
-              <select value={sector} onChange={(event) => setSector(event.target.value)} aria-label="섹터">
-                <option value="ALL">All sectors</option>
-                {sectors.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-              </select>
-            </label>
-            <label className="control">
-              <span>Rank by</span>
-              <select value={rankMode} onChange={(event) => setRankMode(event.target.value as RankMode)} aria-label="랭킹 기준">
-                <option value="total">Total Score</option>
-                <option value="krx">KRX Index</option>
-                <option value="sortino">Sortino</option>
-                <option value="trade">Trade Flow</option>
-              </select>
-            </label>
-            <button className="control" type="button" onClick={resetDashboard}>Reset</button>
-          </form>
 {/*
           <section className="drop-zone" aria-label="위젯 드롭 영역" onDragOver={(event) => event.preventDefault()} onDrop={handleDropToCanvas}>
             <div>
@@ -1084,7 +1359,7 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('hotTrendRanking')}>
                 <div className="card-head">
                   <div>
-                    <h2>Hot Trend Sector Ranking</h2>
+                    <h2>트렌드 랭킹</h2>
                     <p className="caption">수급 모멘텀과 가격 모멘텀 기준 Top 5 섹터</p>
                   </div>
                 {/* 
@@ -1122,14 +1397,14 @@ function App() {
               <article className="card pad widget" id="money" {...widgetGridProps('smartMoneyRanking')}>
                 <div className="card-head">
                   <div>
-                    <h2>Smart Money Ranking</h2>
+                    <h2>스마트 머니 랭킹</h2>
                     <p className="caption">KRX 지수 편입, 소르티노, 거래대금, 펀더멘털 종합 점수</p>
                   </div>
                   <WidgetTools id="smartMoneyRanking" />
                 </div>
                 <div className="big-number"><span>{avg(candidates.map((stock) => stock.totalScore)).toFixed(1)}</span> <small>avg score</small></div>
                 <table className="table" aria-label="스마트 머니 테이블">
-                  <thead><tr><th>Stock</th><th>KRX hits</th><th>Total</th></tr></thead>
+                  <thead><tr><th>Stock</th><th>KRX 편입현황</th><th>Total</th></tr></thead>
                   <tbody>
                     {sorted.slice(0, 5).map((stock) => (
                       <tr key={stock.ticker} className={stock.ticker === selected.ticker ? 'active' : ''} onClick={() => selectStock(stock.ticker)}>
@@ -1145,7 +1420,7 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('marketThermometer')}>
                 <div className="card-head">
                   <div>
-                    <h2>Market Thermometer</h2>
+                    <h2>시장 온도계</h2>
                     <p className="caption">VIX와 공포-탐욕 지수 가로형 온도계</p>
                   </div>
                   <WidgetTools id="marketThermometer" />
@@ -1165,7 +1440,7 @@ function App() {
               <article className="card pad widget" id="sector" {...widgetGridProps('sectorRadar')}>
                 <div className="card-head">
                   <div>
-                    <h2>Sector Radar</h2>
+                    <h2>섹터별 랭킹</h2>
                     <p className="caption">최근 수익률, 거래대금 증가, 상대강도 합산</p>
                   </div>
                   <WidgetTools id="sectorRadar" />
@@ -1186,8 +1461,10 @@ function App() {
               <article className="card pad widget" id="matrix" {...widgetGridProps('hiddenGemMatrix')}>
                 <div className="card-head">
                   <div>
-                    <h2>Hidden Gem Matrix <span className="info-dot">i</span></h2>
-                    <p className="caption">투자 매력도와 시장 관심도로 후보 종목을 4사분면 분류</p>
+                    <h2>스마트 머니 매트릭스</h2>
+                    <p className="caption">
+                      자체 AI 알고리즘으로 숨은 유망 종목을 찾아주는 4분면 분석 차트
+                    </p>
                   </div>
                   <WidgetTools id="hiddenGemMatrix" />
                 </div>
@@ -1200,12 +1477,12 @@ function App() {
                   >
                     <defs>
                       <marker id="matrixArrow" markerHeight="7" markerWidth="7" orient="auto" refX="5" refY="3.5">
-                        <path d="M0 0 7 3.5 0 7z" fill="#6f7f98" />
+                        <path d="M0 0 7 3.5 0 7z" fill="var(--matrix-axis)" />
                       </marker>
                       <radialGradient cx="42%" cy="30%" id="matrixGlow" r="70%">
-                        <stop offset="0%" stopColor="#0f3550" stopOpacity="0.68" />
-                        <stop offset="62%" stopColor="#071a2b" stopOpacity="0.42" />
-                        <stop offset="100%" stopColor="#050b14" stopOpacity="0.12" />
+                        <stop offset="0%" stopColor="var(--matrix-glow-core)" />
+                        <stop offset="62%" stopColor="var(--matrix-glow-mid)" />
+                        <stop offset="100%" stopColor="var(--matrix-glow-edge)" />
                       </radialGradient>
                     </defs>
                     <rect className="matrix-bg" height={matrixHeight - 6} rx="10" width={matrixWidth - 6} x="3" y="3" />
@@ -1233,31 +1510,29 @@ function App() {
                     <text className="matrix-zone-copy" x={matrixPlot.left + 32} y={matrixPlot.bottom - 22}>매력도와 관심도 모두 낮은 종목</text>
                     <text className="matrix-zone-title zone-caution" textAnchor="end" x={matrixPlot.right - 22} y={matrixPlot.bottom - 44}>과열 주의</text>
                     <text className="matrix-zone-copy" textAnchor="end" x={matrixPlot.right - 22} y={matrixPlot.bottom - 22}>관심은 높지만 매력도가 낮은 종목</text>
-                    <text className="matrix-axis-label" textAnchor="middle" x={(matrixPlot.left + matrixPlot.right) / 2} y={matrixHeight - 22}>시장 관심도</text>
-                    <text className="matrix-axis-label" textAnchor="middle" x={matrixMidX} y={matrixPlot.bottom + 22}>50</text>
-                    <text className="matrix-axis-label" textAnchor="middle" x={matrixPlot.left - 27} y={matrixMidY + 4}>50</text>
-                    <text className="matrix-axis-end" x={matrixPlot.left - 6} y={matrixHeight - 22}>낮음</text>
-                    <text className="matrix-axis-end" textAnchor="end" x={matrixPlot.right + 8} y={matrixHeight - 22}>높음</text>
-                    <text className="matrix-axis-end" x={matrixPlot.left - 48} y={matrixPlot.top + 4}>높음</text>
-                    <text className="matrix-axis-end" x={matrixPlot.left - 48} y={matrixPlot.bottom - 2}>낮음</text>
-                    <text className="matrix-y-label" textAnchor="middle" x={matrixPlot.left - 24} y={matrixMidY - 15}>
-                      <tspan x={matrixPlot.left - 24}>투자</tspan>
-                      <tspan dy="18" x={matrixPlot.left - 24}>매력도</tspan>
+                    <text className="matrix-axis-label" textAnchor="middle" x={(matrixPlot.left + matrixPlot.right) / 2} y={matrixHeight - 15}>시장 관심도</text>
+                    <text className="matrix-axis-label" textAnchor="middle" x={matrixMidX} y={matrixPlot.bottom + 22}>{Math.round(matrixXMidValue)}</text>
+                    <text className="matrix-axis-label matrix-y-midpoint" textAnchor="end" x={matrixPlot.left - 10} y={matrixMidY + 4}>{Math.round(matrixYMidValue)}</text>
+                    <text className="matrix-axis-end" x={matrixPlot.left - 30} y={matrixPlot.bottom + 22}>낮음</text>
+                    <text className="matrix-axis-end" textAnchor="end" x={matrixPlot.right + 8} y={matrixPlot.bottom + 22}>높음</text>
+                    <text className="matrix-axis-end" x={matrixPlot.left - 30} y={matrixPlot.top + 4}>높음</text>
+                    <text className="matrix-y-label" textAnchor="middle" x={matrixPlot.left - 46} y={matrixMidY - 5}>
+                      <tspan x={matrixPlot.left - 46}>투자</tspan>
+                      <tspan dy="18" x={matrixPlot.left - 46}>매력도</tspan>
                     </text>
-                    {sorted.slice(0, 20).map((stock, index) => {
-                      const x = matrixPlot.left + (stock.marketAttentionScore / 100) * (matrixPlot.right - matrixPlot.left)
-                      const y = matrixPlot.bottom - (stock.intrinsicScore / 100) * (matrixPlot.bottom - matrixPlot.top)
+                    {matrixData.map((stock, index) => {
+                      const x = matrixScaleX(stock.marketAttentionScore)
+                      const y = matrixScaleY(stock.intrinsicScore)
                       const isSelected = stock.ticker === selected.ticker
                       const radius = (isSelected ? 7 : 3.5) + (stock.totalScore / 100) * matrixRadiusScale
                       const zone =
-                        stock.marketAttentionScore < 50 && stock.intrinsicScore >= 50
+                        stock.marketAttentionScore < matrixXMidValue && stock.intrinsicScore >= matrixYMidValue
                           ? 'hidden'
-                          : stock.marketAttentionScore >= 50 && stock.intrinsicScore >= 50
+                          : stock.marketAttentionScore >= matrixXMidValue && stock.intrinsicScore >= matrixYMidValue
                             ? 'popular'
-                            : stock.marketAttentionScore >= 50
+                            : stock.marketAttentionScore >= matrixXMidValue
                               ? 'caution'
                               : 'ignore'
-                      const fill = zone === 'hidden' ? '#34d399' : zone === 'popular' ? '#60a5fa' : zone === 'caution' ? '#f9735b' : '#7d8999'
                       const labelDx = x > matrixPlot.right - 70 ? -7 : 7
                       const labelAnchor = x > matrixPlot.right - 70 ? 'end' : 'start'
                       const labelDy = index % 3 === 0 ? -8 : index % 3 === 1 ? 11 : 1
@@ -1266,7 +1541,7 @@ function App() {
                         <g className={`matrix-point zone-${zone}`} key={stock.ticker} onClick={() => selectStock(stock.ticker)}>
                           <title>{`${stock.name} · 관심도 ${stock.marketAttentionScore.toFixed(0)} · 매력도 ${stock.intrinsicScore.toFixed(0)} · Total ${stock.totalScore.toFixed(0)}`}</title>
                           {isSelected && <circle className="matrix-halo" cx={x} cy={y} r={radius + 12} />}
-                          <circle className={`matrix-dot ${isSelected ? 'active' : ''}`} cx={x} cy={y} r={radius} fill={fill} />
+                          <circle className={`matrix-dot ${isSelected ? 'active' : ''}`} cx={x} cy={y} r={radius} />
                           {showLabel && (
                             <text
                               className="matrix-label"
@@ -1281,7 +1556,6 @@ function App() {
                         </g>
                       )
                     })}
-                    <text className="matrix-footnote" x={matrixPlot.left - 46} y={matrixHeight - 7}>* 버블 크기: Total Score · 색상: 사분면 분류</text>
                   </svg>
                 </div>
               </article>
@@ -1291,7 +1565,7 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('etfTop10')}>
                 <div className="card-head">
                   <div>
-                    <h2>KRX Index Top 10</h2>
+                    <h2>Market Top 10</h2>
                     <p className="caption">CSV 시가총액 기준 현재 유니버스 상위 종목</p>
                   </div>
                   <WidgetTools id="etfTop10" />
@@ -1312,7 +1586,7 @@ function App() {
               <article className="card pad widget" id="valuation" {...widgetGridProps('valuationBand')}>
                 <div className="card-head">
                   <div>
-                    <h2>Valuation Gauge</h2>
+                    <h2>가치평가 밴드</h2>
                     <p className="caption">{selected.name} · {sectorById[selected.sector].label} 섹터 내 상대 위치</p>
                   </div>
                   <WidgetTools id="valuationBand" />
@@ -1332,9 +1606,10 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('stockSummary')}>
                 <div className="card-head">
                   <div>
-                    <h2>Stock Summary</h2>
+                    <h2>종목 정보</h2>
                     <p className="caption">{selected.ticker} · {selected.market} · {sectorById[selected.sector].label}</p>
                   </div>
+                  <WidgetTools id="stockSummary" />
                 </div>
                 <div className="stock-summary">
                   <div className="summary-main">
@@ -1348,7 +1623,7 @@ function App() {
                     <div className="stat-box"><span>시가총액</span><strong>{selectedProfile.marketCap}</strong></div>
                     <div className="stat-box"><span>거래량</span><strong>{selectedProfile.volume}</strong></div>
                     <div className="stat-box"><span>EPS</span><strong>{selectedProfile.eps}</strong></div>
-                    <div className="stat-box"><span>KRX hits</span><strong>{selected.krxIndexHits}/34</strong></div>
+                    <div className="stat-box"><span>KRX 편입현황</span><strong>34개 지수 중 {selected.krxIndexHits}개</strong></div>
                   </div>
                 </div>
               </article>
@@ -1358,7 +1633,7 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('accountLink')}>
                 <div className="card-head">
                   <div>
-                    <h2>Account Link View</h2>
+                    <h2>계좌 현황</h2>
                     <p className="caption">목업 계좌 잔액, 보유 종목, 수익률</p>
                   </div>
                   <WidgetTools id="accountLink" />
@@ -1400,7 +1675,7 @@ function App() {
               <article className="card pad widget" {...widgetGridProps('liveFeed')}>
                 <div className="card-head">
                   <div>
-                    <h2>Live Feed</h2>
+                    <h2>실시간 피드</h2>
                     <p className="caption">뉴스 및 DART 공시 목업 리스트</p>
                   </div>
                   <WidgetTools id="liveFeed" />
@@ -1418,18 +1693,6 @@ function App() {
           </div>
 
           <div className="metric-row">
-            {isVisible('valuationBand') && (
-              <article className="card pad widget" {...widgetGridProps('valuationBand')}>
-                <div className="card-head">
-                  <div>
-                    <h2>Valuation percentiles</h2>
-                    <p className="caption">섹터 내 상대 순위 기준</p>
-                  </div>
-                  <WidgetTools id="valuationBand" />
-                </div>
-                <MetricTable columns={['Metric', 'p25', 'p50', 'p75', 'Now']} rows={valuationRows} />
-              </article>
-            )}
             {isVisible('flowPercentiles') && (
               <article className="card pad widget" {...widgetGridProps('flowPercentiles')}>
                 <div className="card-head">
@@ -1442,23 +1705,11 @@ function App() {
                 <MetricTable columns={['Signal', 'p25', 'p50', 'p75', 'Now']} rows={flowRows} />
               </article>
             )}
-            {isVisible('mdd') && (
-              <article className="card pad widget" {...widgetGridProps('mdd')}>
-                <div className="card-head">
-                  <div>
-                    <h2>Risk percentiles</h2>
-                    <p className="caption">최근 3개월 기준</p>
-                  </div>
-                  <WidgetTools id="mdd" />
-                </div>
-                <MetricTable columns={['Risk', 'p25', 'p50', 'p75', 'Now']} rows={riskRows} />
-              </article>
-            )}
             {isVisible('reasonCards') && (
               <article className="card pad widget" {...widgetGridProps('reasonCards')}>
                 <div className="card-head">
                   <div>
-                    <h2>Reason cards</h2>
+                    <h2>종목 분석 지표</h2>
                     <p className="caption">왜 이 종목인지 자동 근거화</p>
                   </div>
                   <WidgetTools id="reasonCards" />
